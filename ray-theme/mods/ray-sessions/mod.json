@@ -1,1 +1,1 @@
-{ "place": "none", "title": "Sessions" }
+{"place": "none", "title": "Sessions", "overlay": {"kind": "window", "key": "ray-sessions", "width": 420, "height": 560}}

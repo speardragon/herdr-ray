@@ -5,7 +5,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, focused, theme, home, appHome, exec, run, knownAgents } from "herdr";
+import { spaces, panes, focused, theme, home, appHome, exec, run, knownAgents, props, closeOverlay } from "herdr";
 import { tr } from "./i18n/i18n.js";
 
 const POLL_MS = 120_000;
@@ -159,7 +159,13 @@ export default class Sessions extends View {
           .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
           .tooltip(tr("Refresh"))
           .on_click((_e, cx) => this.load(folder, cx))
-          .child("↻")))
+          .child("↻"))
+        // Opened on its own (mod.open), it is a window and gets a ✕.
+        .when(Boolean(props()?.overlay), (el) => el.child(div().id("close").flex_none().size(24).flex().items_center().justify_center().rounded(6)
+          .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
+          .tooltip(tr("Close"))
+          .on_click(() => closeOverlay(props().overlay))
+          .child("✕"))))
       .child(this.body(t, folder));
   }
 }

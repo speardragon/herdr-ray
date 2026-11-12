@@ -1,1 +1,1 @@
-{ "place": "none", "title": "Notes" }
+{"place": "none", "title": "Notes", "overlay": {"kind": "window", "key": "ray-notes", "width": 440, "height": 560}}

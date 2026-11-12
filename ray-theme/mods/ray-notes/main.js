@@ -5,11 +5,12 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
-import { spaces, theme, settings, appHome, readTextFile, writeTextFile } from "herdr";
+import { spaces, theme, settings, appHome, readTextFile, writeTextFile, props, closeOverlay } from "herdr";
 import * as fs from "fs/promises";
 import { tr } from "./i18n/i18n.js";
 
 const SAVE_MS = 1000;
+const RELOAD_MS = 3000;
 const folder = () => `${appHome()}/ray-notes`;
 
 // "/Users/me/dev/app" -> "Users_me_dev_app.md"; a space on another machine is
@@ -46,6 +47,24 @@ export default class Notes extends View {
     cx.timer.every(SAVE_MS, (cx) => {
       if (this.dirty) cx.spawn(async (cx) => { await this.save(); cx.notify(); });
     });
+    // The panel and the window can both be open on the same note: one that
+    // isn't being typed in picks up what the other saved.
+    cx.timer.every(RELOAD_MS, (cx) => {
+      if (this.dirty || this.loading || this.pending !== undefined || !this.file) return;
+      cx.spawn(async (cx) => { if (await this.reload()) cx.notify(); });
+    });
+  }
+
+  // Shows the file again if it changed on disk and nothing is typed here. -> changed
+  async reload() {
+    const file = this.file;
+    const disk = await readTextFile(file).catch(() => null);
+    if (file !== this.file || this.dirty || disk === this.disk || this.editor.value() !== (this.disk ?? "")) return false;
+    this.loading = true;
+    this.disk = disk;
+    this.editor.set_value(disk ?? "");
+    this.loading = false;
+    return true;
   }
 
   async save() {
@@ -113,7 +132,13 @@ export default class Notes extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().flex_none().font_semibold().child(tr("Notes")))
         .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(space?.name ?? ""))
-        .child(div().flex_none().text_size(12).text_color(this.error ? t.blocked : t.dim).when(Boolean(this.error), (el) => el.id("note-error").tooltip(this.error)).child(state)))
+        .child(div().flex_none().text_size(12).text_color(this.error ? t.blocked : t.dim).when(Boolean(this.error), (el) => el.id("note-error").tooltip(this.error)).child(state))
+        // Opened on its own (mod.open), it is a window and gets a ✕.
+        .when(Boolean(props()?.overlay), (el) => el.child(div().id("close").flex_none().size(24).flex().items_center().justify_center().rounded(6)
+          .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
+          .tooltip(tr("Close"))
+          .on_click(() => closeOverlay(props().overlay))
+          .child("✕"))))
       .when(Boolean(space) && !this.dirty && !this.editor.value(), (el) => el.child(
         div().flex_none().px(14).pt(10).text_size(12.5).text_color(t.dim).child(tr("Click below and write anything for this space. It's saved as Markdown."))))
       .child(space

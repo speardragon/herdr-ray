@@ -14,7 +14,7 @@
 
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { theme, agents, focused, panes, spaces, hc, shared, setShared } from "herdr";
+import { theme, agents, focused, panes, spaces, hc, shared, setShared, props, closeOverlay } from "herdr";
 import { readSearchPage, readRepoPage, findRepo, knownRepo, PAGE_SIZE } from "./data.js";
 import { PagedLists } from "./pages.js";
 import { accounts, chosenAccount, chooseAccount, openUrl, ALL } from "./lib/github.js";
@@ -386,6 +386,12 @@ export default class Prs extends View {
   render(cx) {
     const t = theme();
     const filter = filterNow();
+    // Opened on its own (mod.open), it is a window and gets a ✕.
+    const closeButton = (t) => div().id("close").flex_none().size(24).flex().items_center().justify_center().rounded(6)
+      .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .tooltip(tr("Close"))
+      .on_click(() => closeOverlay(props().overlay))
+      .child("✕");
     this.ensure(cx, false, filter);
     return v_flex()
       .id("ray-prs")
@@ -410,7 +416,8 @@ export default class Prs extends View {
           .text_color(this.inflight.size ? t.working : t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
           .tooltip(tr("Refresh"))
           .on_click((_e, cx) => this.redraw(cx, true))
-          .child("↻")))
+          .child("↻"))
+        .when(Boolean(props()?.overlay), (el) => el.child(closeButton(t))))
       .when(this.picking, (el) => el.child(this.picker(t)))
       .child(this.filters(t, filter))
       .child(filter === "repo" ? this.repoBody(t, currentFolder()) : this.everywhereBody(t, filter));

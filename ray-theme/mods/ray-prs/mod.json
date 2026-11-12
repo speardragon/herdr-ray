@@ -1,1 +1,1 @@
-{ "place": "none", "title": "Pull requests" }
+{"place": "none", "title": "Pull requests", "overlay": {"kind": "window", "key": "ray-prs", "width": 460, "height": 700}}
