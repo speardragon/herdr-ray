@@ -181,7 +181,7 @@ export default class Files extends View {
       const tint = mark ? GIT[mark] ?? GIT.M : null;
       out.push(h_flex().id(`file-${path}`).h(22).flex_none().pl(4 + depth * 10).pr(12).gap(5).items_center().cursor_pointer()
         .when(path === this.last, el => el.bg(C.selected)).hover(s => s.bg(path === this.last ? C.selected : C.hover))
-        .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.show(path, cx))
+        .on_click((_e, cx) => { if (entry.dir) this.toggle(path, cx); else { this.show(path, cx); cx.notify(); } })
         .child(entry.dir ? svg(`mods/ray-files/chevron-${open ? "down" : "right"}.svg`).size(14).flex_none().text_color(C.text) : div().w(14).flex_none())
         .child(image(entry.dir ? folderIcon(entry.name, open) : fileIcon(entry.name)).size(16).flex_none())
         .child(div().flex_1().min_w(0).truncate().when(Boolean(tint), el => el.text_color(tint)).child(entry.name))
