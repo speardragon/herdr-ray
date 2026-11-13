@@ -26,7 +26,7 @@ Left to right, top to bottom:
 
 ## Built from
 
-- Node tree: `root` (row, `canvas`, dividers) → `sidebar` (column: `brand` = `workspace-chrome-big` {search: false}, `sidebar-list` = `ray-sidebar`, `sidebar-footer` = `workspace-chrome-big` {footer: true}) and `work` (column: `tabs` = `tabs-big`; `work-body` row: `main` = the active tab with `pane-big` headers, `panel` → `panel-body` stack of `files`, `changes` (Herdr's own), `ray-prs`, `ray-sessions`, `ray-notes`, `ray-chat`, `ray-mods`; `status-bar` row: `workspace-status-big` {palette: false}, `ray-usage` (470px), `ray-chat` {view: "watch"} (1px, records agent messages)).
+- Node tree: `root` (row, `canvas`, dividers) → `sidebar` (column: `brand` = `workspace-chrome-big` {search: false}, `sidebar-list` = `ray-sidebar`, `sidebar-footer` = `workspace-chrome-big` {footer: true}) and `work` (column: `tabs` = `tabs-big`; `work-body` row: `main` = the active tab with `pane-big` headers, `panel` → `panel-body` stack of `ray-files`, `changes` (Herdr's own), `ray-prs`, `ray-sessions`, `ray-notes`, `ray-chat`, `ray-mods`; `status-bar` row: `workspace-status-big` {palette: false}, `ray-usage` (470px), `ray-chat` {view: "watch"} (1px, records agent messages)).
 - `ray-locale` holds the shared English/Korean words; every mod carries a copy in its `i18n/` (`ray-locale/sync.sh` refreshes them). `ray-picker` is a clone of Herdr's picker with logos.
 - Programs: `git`, `gh` (pull requests, accounts from `~/.config/gh/hosts.yml`), `hc`, `curl`; Claude Code and Codex session files for Sessions and Chat.
 
