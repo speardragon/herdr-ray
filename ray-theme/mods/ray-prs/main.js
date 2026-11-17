@@ -21,6 +21,7 @@ import { accounts, chosenAccount, chooseAccount, openUrl, ALL } from "./lib/gith
 import { tr } from "./i18n/i18n.js";
 import { pager } from "./pager.js";
 import { cached, fetchMissing, pathOf } from "./avatars.js";
+import { ringColor, ringOut, ringProbe } from "./focus-ring.js";
 
 const POLL_MS = 180_000; // the shown page rereads this often; going back to a page read sooner shows it as read
 const FILTER_KEY = "ray.prs.filter";
@@ -401,7 +402,7 @@ export default class Prs extends View {
       .overflow_hidden()
       .bg(t.background)
       .border_1()
-      .border_color(t.border)
+      .border_color(ringColor(this, t.border)).on_mouse_down_out(ringOut(this)).child(ringProbe(this))
       .text_color(t.foreground)
       .text_size(13.5)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)

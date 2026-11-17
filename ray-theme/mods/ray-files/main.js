@@ -5,6 +5,7 @@ import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, settings, window } from "herdr";
 import { markdownSource, parseMarkdown } from "./mdview.js";
 import { C, GIT, SYNTAX, fileIcon, folderIcon } from "./look.js";
+import { ringColor, ringOut, ringProbe } from "./focus-ring.js";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -208,7 +209,7 @@ export default class Files extends View {
   render(cx) {
     if (key() !== this.context?.key) this.refresh(cx);
     const note = (text) => div().px(20).py(8).text_size(12).text_color(C.dim).child(text);
-    return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(C.side).border_1().border_color(C.border).text_color(C.text).text_size(13)
+    return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(C.side).border_1().border_color(ringColor(this, C.border)).on_mouse_down_out(ringOut(this)).child(ringProbe(this)).text_color(C.text).text_size(13)
       .when(!this.file, el => el
         .child(h_flex().h(35).flex_none().pl(20).pr(12).items_center().text_size(11).text_color(C.text).child("EXPLORER"))
         .child(h_flex().h(22).flex_none().pl(4).pr(12).gap(5).items_center().border_t(1).border_color(C.border)

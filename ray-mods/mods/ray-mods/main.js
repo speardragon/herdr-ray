@@ -15,6 +15,7 @@ import { fingerprint, latest, link, off, on, openFolder, remove, unlink, upgrade
 import { list } from "./list.js";
 import { detail } from "./detail.js";
 import { tr } from "./i18n/i18n.js";
+import { ringColor, ringOut, ringProbe } from "./focus-ring.js";
 
 const UPDATES = "ray.mods.updates"; // how many mods have an update (the panel button's badge)
 const CONFIRM_MS = 4000;
@@ -160,7 +161,7 @@ export default class Mods extends View {
 
   render() {
     const t = theme();
-    const root = v_flex().id("mods").size_full().min_h(0).bg(t.background).text_color(t.foreground);
+    const root = v_flex().id("mods").size_full().min_h(0).bg(t.background).text_color(t.foreground).border_1().border_color(ringColor(this, "#00000000")).on_mouse_down_out(ringOut(this)).child(ringProbe(this));
     const item = this.sel ? this.item(this.sel) : null;
     if (item) return root.child(detail(t, item, this.view()));
     const mine = this.items.filter((i) => i.kind !== "shipped" && i.kind !== "missing").length;

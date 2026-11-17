@@ -17,6 +17,7 @@ The mods installed in your Herdr, in one window: what each is, where your layout
 - **Remove:** moves the folder to `.install-spare/trash-…` (only when no layout block uses it). Asks for a second press.
 - Linked mods are checked on open and every 6 hours; the number with an update is shared as `ray.mods.updates`.
 - Herdr's own mods are read-only here; the panel can't turn itself off.
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

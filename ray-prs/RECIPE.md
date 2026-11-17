@@ -66,6 +66,7 @@ whichever agent you're facing.
   first, then the others, remembering whichever worked for next time.
 - Picking an account is remembered (shared `ray.gh.account`) for every
   ray-theme mod that reads GitHub, not just this one.
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

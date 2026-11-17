@@ -30,7 +30,9 @@ function open(url) {
 const isPlain = (runs) => runs.every((r) => !r.b && !r.i && !r.s && !r.u && !r.code && !r.href && !r.mention && !r.color);
 
 function wordEl(run, key, skin) {
-  let el = div().flex_none().child(run.text.replace(/\n$/, ""));
+  // A word keeps its size on a line, but one wider than the whole line (a long
+  // address or path) may shrink to it and wrap inside instead of running off.
+  let el = div().flex_shrink_1().min_w(0).max_w_full().whitespace_normal().child(run.text.replace(/\n$/, ""));
   if (run.b) el = el.font_bold();
   if (run.i) el = el.italic();
   if (run.s) el = el.line_through();
@@ -79,7 +81,7 @@ function blockEl(block, id, skin, bud) {
         .child(div().flex_1().min_w(0).child(runsEl(block.runs, id, skin, bud)));
     }
     case "code":
-      return div().w_full().px(11).py(9).rounded(7).bg(skin.preBg).border_1().border_color(skin.border).font_family(MONO).text_size(Math.round(SIZE * 0.88)).line_height(1.55)
+      return div().w_full().min_w(0).overflow_hidden().px(11).py(9).rounded(7).bg(skin.preBg).border_1().border_color(skin.border).font_family(MONO).text_size(Math.round(SIZE * 0.88)).line_height(1.55)
         .text_color(skin.text).whitespace_normal().child(block.text.split("\n").slice(0, 50).join("\n").slice(0, 3000));
     case "quote":
       return h_flex().w_full().items_stretch().gap(10).child(div().w(3).flex_none().rounded(2).bg(skin.quoteBar))

@@ -11,18 +11,19 @@
 // The log: store.js. Where messages come from: scan.js.
 
 import { View, div } from "gpui-kit";
-import { v_flex, h_flex, InputState, TextareaState } from "gpui-base";
+import { v_flex, h_flex, InputState, TextareaState, ScrollHandle } from "gpui-base";
 import { theme, props, shared, setShared, terminals, agents, spaces, focused, knownAgents, hc, exec, run, openOverlay, closeOverlay } from "herdr";
 import { EMPTY, load } from "./store.js";
 import { Watcher, REV, OUTBOX, LINKS, beat } from "./watch.js";
 import { conversations } from "./model.js";
 import { blocks } from "./rich.js";
 import { list } from "./list.js";
-import { thread, STEP } from "./thread.js";
+import { thread, PAGE } from "./thread.js";
 import { askForm } from "./ask.js";
 import { agentNames } from "./names.js";
 import { KINDS, request } from "./prompt.js";
 import { tr } from "./i18n/i18n.js";
+import { ringColor, ringOut, ringProbe } from "./focus-ring.js";
 
 const WATCH_MS = 5000;
 const READ = "ray.chat.read"; // { [conversation]: ms last looked at }
@@ -41,15 +42,16 @@ export default class Chat extends View {
     this.log = EMPTY;
     this.rev = undefined;
     this.open = null; // the conversation shown
-    this.end = null; // the last message shown (null: the newest)
-    this.wheel = 0;
+    this.scroller = ScrollHandle.new(); // the messages' scroll position (thread.js)
+    this.shown = PAGE; // how many of the newest messages are drawn
+    this.following = true; // kept at the newest; turning back up stops it
+    this.fromBottom = 0; // how far up from the newest, in pixels, as the wheel tells it
+    this.stuckAt = null; // the conversation and size last taken to the newest
     this.parsed = new Map(); // message id -> parsed Markdown blocks
     this.hovered = null; // the message row under the pointer, and the one just copied
     this.copied = null;
-    this.viewHeight = null; // the messages area's height, and its rows': the
-    this.rowsHeight = null; // top is reached when the rows fit (thread.js)
-    this.atTop = false;
-    this.rowsFor = null;
+    this.viewHeight = null; // the messages area's height, and its rows'
+    this.rowsHeight = null;
     this.to = null;
     this.error = null;
     this.notice = null;
@@ -215,27 +217,31 @@ export default class Chat extends View {
 
   choose(key, cx) {
     this.open = key;
-    this.end = null;
-    this.atTop = false;
+    this.newest();
+    this.shown = PAGE;
     this.error = null;
     if (key && this.convs?.find((c) => c.key === key)?.unread) this.markRead(key);
     cx.notify();
   }
 
-  // The wheel moves the last message shown; null: back to the newest.
-  scroll(delta, count, cx) {
-    if (delta === null) {
-      this.end = null;
-    } else {
-      this.wheel += delta;
-      // One message a turn of the wheel: the top is only known after a step is drawn.
-      const steps = Math.max(-1, Math.min(1, Math.trunc(this.wheel / STEP)));
-      if (!steps) return;
-      this.wheel = 0;
-      if (steps > 0 && this.atTop) return; // the first message is already at the top
-      const end = (this.end ?? count) - steps;
-      this.end = end >= count ? null : Math.max(1, end);
-    }
+  // Back at the newest, and staying there as messages come.
+  newest() {
+    this.following = true;
+    this.fromBottom = 0;
+    this.stuckAt = null; // asked for the newest again on the next frame
+  }
+
+  // The scroll area scrolls by itself; this only keeps track of how far up it
+  // is, to know whether to stay with the newest, and draws a page more at the
+  // top. Nothing is redrawn unless one of those changes.
+  wheel(delta, count, cx) {
+    const room = Math.max(0, (this.rowsHeight ?? 0) + 6 - (this.viewHeight ?? 0));
+    this.fromBottom = Math.max(0, Math.min(room, this.fromBottom + delta));
+    const following = this.fromBottom < 24;
+    const more = delta > 0 && this.fromBottom >= room - 2 && this.shown < count;
+    if (more) this.shown += PAGE;
+    if (following === this.following && !more) return;
+    this.following = following;
     cx.notify();
   }
 
@@ -252,7 +258,7 @@ export default class Chat extends View {
         const r = await hc(["send", to.address, text]);
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0] || tr("Couldn't send."));
         setShared(OUTBOX, [...(shared(OUTBOX) ?? []), sent]);
-        this.end = null;
+        this.newest();
       } catch (error) {
         this.error = String(error?.message ?? error);
         this.input.set_value(text);
@@ -277,7 +283,7 @@ export default class Chat extends View {
 
   view(back) {
     return {
-      open: this.open, end: this.end, input: this.input, to: this.to, error: this.error, back,
+      open: this.open, shown: this.shown, following: this.following, scroller: this.scroller, input: this.input, to: this.to, error: this.error, back,
       status: (a) => this.status(a),
       choose: (key, cx) => this.choose(key, cx),
       goTo: (a, cx) => { run("agent.focus", { terminal: a.address }); cx.notify(); },
@@ -307,17 +313,18 @@ export default class Chat extends View {
         if (this.parsed.size > 400) this.parsed.delete(this.parsed.keys().next().value);
         return list;
       },
-      rowsHeight: this.rowsHeight, rowsFor: this.rowsFor, viewHeight: this.viewHeight,
-      note: ({ atTop }) => { this.atTop = atTop; },
-      // `rows`: which rows a rows height is of (thread.js trusts only its own).
-      measure: (name, px, cx, rows) => {
-        const same = this[name] !== null && Math.abs(this[name] - px) < 1 && (rows === undefined || rows === this.rowsFor);
-        if (same) return;
+      measure: (name, px, cx) => {
+        const was = this[name];
+        if (was !== null && Math.abs(was - px) < 1) return;
         this[name] = px;
-        if (rows !== undefined) this.rowsFor = rows;
-        cx.notify();
+        // Rows added above or below while turned back push the newest further down.
+        if (name === "rowsHeight" && was !== null && !this.following) this.fromBottom += Math.max(0, px - was);
       },
-      scroll: (delta, count, cx) => this.scroll(delta, count, cx),
+      stuckAt: this.stuckAt,
+      stuck: (key) => { this.stuckAt = key; },
+      wheel: (delta, count, cx) => this.wheel(delta, count, cx),
+      older: (count, cx) => { this.shown = Math.min(count, this.shown + PAGE); this.following = false; cx.notify(); },
+      newest: (cx) => { this.newest(); cx.notify(); },
     };
   }
 
@@ -349,7 +356,7 @@ export default class Chat extends View {
       const key = this.current.key;
       cx.spawn(async () => this.markRead(key));
     }
-    const root = v_flex().id("chat").size_full().min_h(0).bg(t.background).text_color(t.foreground);
+    const root = v_flex().id("chat").size_full().min_h(0).bg(t.background).text_color(t.foreground).border_1().border_color(ringColor(this, "#00000000")).on_mouse_down_out(ringOut(this)).child(ringProbe(this));
     const askButton = this.button(t, "chat-ask", `+ ${tr("Ask")}`, tr("Have an agent ask another"), (_e, cx) => this.openAsk(null, cx));
     if (this.mode === "window") {
       const shown = this.current ?? convs[0] ?? null;

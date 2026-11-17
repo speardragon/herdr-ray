@@ -22,6 +22,7 @@ What your agents say to each other, as a chat app shows it. When an agent starts
 - Opening a conversation marks it read; the unread total is shared as `ray.chat.unread` (a tab bar can badge it).
 - **Builder:** step 1 lists the running agents grouped under their spaces (machine tabs when several machines, the space in view open, others folded; the focused agent has an accent bar and a "Current" tag). Step 2: start a new agent (installed programs from `knownAgents()`, `hc templates`) or an agent already running (foldable list). Step 3: Ask, Get a review, Get a second opinion, Delegate a task. Step 4: a one-line summary (each part jumps back) and the text. Choosing marks; Next or a step number moves on. The last request's target and kind are filled in next time.
 - The text sent tells the asking agent how to start or reach the other (`hc run --bg --name …` or `hc send <address>`), what to give it, its limits (read-only for questions; for Delegate: what it may change), to report in Markdown, to wait with `hc wait`, and how to sum the answer up.
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

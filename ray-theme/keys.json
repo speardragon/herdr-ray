@@ -1,3 +1,19 @@
 {
-  "global": { "cmd-p": "mod.open:ray-picker" }
+  "global": {
+    "cmd-p": "mod.open:ray-picker",
+    "cmd-alt-f": "tabs-big.files",
+    "cmd-alt-shift-f": "tabs-big.low-files",
+    "cmd-alt-g": "tabs-big.changes",
+    "cmd-alt-shift-g": "tabs-big.low-changes",
+    "cmd-alt-p": "tabs-big.prs",
+    "cmd-alt-shift-p": "tabs-big.low-prs",
+    "cmd-alt-s": "tabs-big.sessions",
+    "cmd-alt-shift-s": "tabs-big.low-sessions",
+    "cmd-alt-m": "tabs-big.notes",
+    "cmd-alt-shift-m": "tabs-big.low-notes",
+    "cmd-alt-c": "tabs-big.chat",
+    "cmd-alt-shift-c": "tabs-big.low-chat",
+    "cmd-alt-e": "tabs-big.mods",
+    "cmd-alt-shift-e": "tabs-big.low-mods"
+  }
 }

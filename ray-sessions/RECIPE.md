@@ -35,6 +35,7 @@ resumable in a fresh tab with that program's own usual start command.
   and reloads when it changes, then again every 2 minutes or on ↻.
 - A space on another machine shows nothing — sessions are only read on
   this computer.
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

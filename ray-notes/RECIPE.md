@@ -36,6 +36,7 @@ plain `.md` file next to nothing else.
   overwrites it.
 - The mod saves once more when it closes (its pane, tab or window going
   away, or the app quitting).
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

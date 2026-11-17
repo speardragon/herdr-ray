@@ -49,6 +49,7 @@ as pictures.
 - A picture is copied to `~/.config/herdr-app/data/ray-files/preview-<time>.<ext>`
   when opened, because the app draws images only from its own folder. The
   copy before it is removed first, so there is one at a time.
+- A press inside the panel gives it the accent border the focused terminal pane has, until a press elsewhere (`focus-ring.js`).
 
 ## Built from
 

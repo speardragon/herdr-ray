@@ -1,8 +1,10 @@
 // One conversation: who is in it, its messages oldest to newest with the
 // newest at the bottom, and a box to write to one of its agents.
-// The messages aren't a scroll area (one can't be told to start at its end):
-// they are laid from the bottom and cut at the top, and the wheel moves which
-// message is the last one shown (`view.end`; null: the newest, and stay there).
+// The messages are a real scroll area (smooth wheel, the app's own scrollbar).
+// It is kept at the newest by asking its ScrollHandle for the last row (an
+// empty one under the messages) while `view.following`; turning back up stops
+// that. Only the newest `view.shown` messages are drawn; reaching the top draws
+// a page more.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Input } from "gpui-base";
@@ -11,8 +13,8 @@ import { markdownEl } from "./markdown.js";
 import { continues, senderOf } from "./model.js";
 import { tr } from "./i18n/i18n.js";
 
-const SHOWN = 30; // messages drawn at once, ending at the last one shown (a screen holds about half)
-const STEP = 40; // wheel pixels a message
+export const PAGE = 50; // messages drawn at first, and added each time the top is reached
+const PAD_R = 20; // room on a row's right, clear of the scrollbar
 
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
 
@@ -25,7 +27,7 @@ function dayLine(t, ms) {
 
 function eventLine(t, item, log) {
   const text = item.kind === "note" ? item.text : eventText(item, log.agents[item.agent]);
-  return h_flex().id(`row-${item.id}`).flex_none().px(12).py(3).gap(8).items_center().text_size(12).text_color(t.dim)
+  return h_flex().id(`row-${item.id}`).flex_none().w_full().min_w(0).pl(14).pr(PAD_R).py(3).gap(8).items_center().text_size(12).text_color(t.dim)
     .hover((s) => s.bg(t.hover))
     .child(div().w(30).flex_none().flex().justify_center().child("·"))
     .child(div().flex_1().min_w(0).whitespace_normal().child(text))
@@ -34,7 +36,7 @@ function eventLine(t, item, log) {
 
 // A message's text, as a chat app draws it (markdown.js); `view.blocks` parses it once.
 function body(t, item, view) {
-  return div().text_color(t.foreground).child(markdownEl(t, view.blocks(item), `md-${item.id}`));
+  return div().w_full().min_w(0).text_color(t.foreground).child(markdownEl(t, view.blocks(item), `md-${item.id}`));
 }
 
 // Slack's copy button: on the row under the pointer, top right. The text drawn here
@@ -54,7 +56,7 @@ function message(t, item, before, log, view) {
   const joined = continues(item, before);
   const go = who.address ? (_e, cx) => view.goTo(who, cx) : null;
   // (an element needs an id for its hover to show)
-  return h_flex().id(`row-${item.id}`).relative().flex_none().px(12).pt(joined ? 2 : 6).pb(3).gap(9).items_start()
+  return h_flex().id(`row-${item.id}`).relative().flex_none().w_full().min_w(0).pl(14).pr(PAD_R).pt(joined ? 2 : 6).pb(3).gap(9).items_start()
     .hover((s) => s.bg(t.hover))
     .on_hover((on, cx) => view.hover(item.id, on, cx))
     .when(view.hovered === item.id, (el) => el.child(copyChip(t, item, view)))
@@ -111,39 +113,43 @@ function composer(t, c, view) {
     .when(Boolean(view.error), (el) => el.child(div().whitespace_normal().text_size(12).text_color(t.blocked).child(view.error)));
 }
 
-// `view`: { end, input, to, error, back, rowsHeight, rowsFor, viewHeight, blocks(item), hovered, copied, hover(id, on, cx), copy(item, cx), status(agent), choose, goTo, pickTo, aim(agent), ask(agent, cx),
-//   note({atTop}), measure(name, px, cx), send, scroll(delta, count, cx) }
+// `view`: { shown, following, stuckAt, stuck(key), input, to, error, back, scroller, blocks(item), hovered, copied, hover(id, on, cx),
+//   copy(item, cx), status(agent), choose, goTo, pickTo, aim(agent), ask(agent, cx), measure(name, px, cx),
+//   wheel(delta, count, cx), older(count, cx), newest(cx), send }
 export function thread(t, c, log, view) {
   const count = c.items.length;
-  const end = view.end === null ? count : Math.max(1, Math.min(view.end, count));
-  const from = Math.max(0, end - SHOWN);
-  const rows = c.items.slice(from, end).flatMap((item, n) => {
+  const from = Math.max(0, count - view.shown);
+  const rows = c.items.slice(from).flatMap((item, n) => {
     const before = c.items[from + n - 1];
     const line = item.kind === "message" ? message(t, item, before, log, view) : eventLine(t, item, log);
     return !before || !sameDay(before.ts, item.ts) ? [dayLine(t, item.ts), line] : [line];
   });
-  // The first message is on screen with room to spare: that is the top. The
-  // rows are then laid from the top, and the wheel goes no further back.
-  // (Only a height measured for these very rows counts: one from the rows
-  // drawn before would lay taller rows from the top and cut their end.)
-  const measured = view.rowsFor === `${from}-${end}` && view.rowsHeight !== null && view.viewHeight !== null;
-  const atTop = from === 0 && measured && view.rowsHeight <= view.viewHeight;
-  view.note({ atTop });
-  const pinnedTop = atTop && end < count;
+  const older = from > 0
+    ? [h_flex().id("chat-older").flex_none().h(30).justify_center().items_center().text_size(12).text_color(t.muted).cursor_pointer()
+      .hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => view.older(count, cx))
+      .child(tr("Show {n} earlier messages", { n: Math.min(PAGE, from) }))]
+    : [];
+  // Following the newest: when the conversation opens or grows, ask for the
+  // empty row under the messages (the area's second child). Asked once each
+  // time, not every frame, so the wheel is always free to turn back.
+  const stick = `${c.key}:${count}`;
+  if (view.following && view.stuckAt !== stick) {
+    view.scroller.scroll_to_item(1);
+    view.stuck(stick);
+  }
   return v_flex().size_full().min_h(0)
     .child(header(t, c, view))
-    .child(v_flex().id("chat-messages").flex_1().min_h(0).overflow_hidden()
-      .when(pinnedTop, (el) => el.justify_start())
-      .when(!pinnedTop, (el) => el.justify_end())
+    .child(v_flex().id(`chat-messages-${c.key}`).flex_1().min_h(0).min_w(0)
+      .track_scroll(view.scroller)
+      .overflow_y_scrollbar()
       .on_size_change((size, cx) => view.measure("viewHeight", size.height, cx))
-      .on_scroll_wheel((e, cx) => view.scroll(e.delta?.y ?? 0, count, cx))
-      // The id carries which rows these are, so each set is measured afresh.
-      .child(v_flex().id(`chat-rows-${from}-${end}`).flex_none().pb(6)
-        .on_size_change((size, cx) => view.measure("rowsHeight", size.height, cx, `${from}-${end}`)).children(rows)))
-    // Not at the newest: a bar under the messages (not over them) goes back there.
-    .when(end < count, (el) => el.child(h_flex().id("chat-newest").flex_none().h(26).justify_center().items_center().border_t(1).border_color(t.border)
-      .text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => view.scroll(null, count, cx)).child(tr("Newest ↓"))))
+      .on_scroll_wheel((e, cx) => view.wheel(e.delta?.y ?? 0, count, cx))
+      .child(v_flex().id(`chat-rows-${c.key}`).flex_none().w_full().min_w(0)
+        .on_size_change((size, cx) => view.measure("rowsHeight", size.height, cx))
+        .children([...older, ...rows]))
+      .child(div().id("chat-end").flex_none().h(6)))
+    // Turned back from the newest: a bar under the messages goes back there.
+    .when(!view.following, (el) => el.child(h_flex().id("chat-newest").flex_none().h(26).justify_center().items_center().border_t(1).border_color(t.border)
+      .text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => view.newest(cx)).child(tr("Newest ↓"))))
     .child(composer(t, c, view));
 }
-
-export { STEP };

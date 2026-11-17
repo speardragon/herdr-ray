@@ -8,6 +8,7 @@ import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, theme, settings, appHome, readTextFile, writeTextFile, props, closeOverlay } from "herdr";
 import * as fs from "fs/promises";
 import { tr } from "./i18n/i18n.js";
+import { ringColor, ringOut, ringProbe } from "./focus-ring.js";
 
 const SAVE_MS = 1000;
 const RELOAD_MS = 3000;
@@ -126,7 +127,7 @@ export default class Notes extends View {
       .overflow_hidden()
       .bg(t.background)
       .border_1()
-      .border_color(t.border)
+      .border_color(ringColor(this, t.border)).on_mouse_down_out(ringOut(this)).child(ringProbe(this))
       .text_color(t.foreground)
       .text_size(13)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)

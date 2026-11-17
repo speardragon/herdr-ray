@@ -116,7 +116,7 @@
                       "id": "changes",
                       "type": "block",
                       "content": {
-                        "mod": "changes"
+                        "mod": "ray-changes"
                       }
                     },
                     {
@@ -156,6 +156,63 @@
                     }
                   ],
                   "active": "files"
+                },
+                {
+                  "id": "panel-low",
+                  "type": "stack",
+                  "hidden": true,
+                  "children": [
+                    {
+                      "id": "low-files",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-files"
+                      }
+                    },
+                    {
+                      "id": "low-changes",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-changes"
+                      }
+                    },
+                    {
+                      "id": "low-prs",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-prs"
+                      }
+                    },
+                    {
+                      "id": "low-sessions",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-sessions"
+                      }
+                    },
+                    {
+                      "id": "low-notes",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-notes"
+                      }
+                    },
+                    {
+                      "id": "low-chat",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-chat"
+                      }
+                    },
+                    {
+                      "id": "low-mods",
+                      "type": "block",
+                      "content": {
+                        "mod": "ray-mods"
+                      }
+                    }
+                  ],
+                  "active": "low-files"
                 }
               ],
               "size": {

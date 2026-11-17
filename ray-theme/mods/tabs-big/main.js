@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings } from "herdr";
+import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings, nextCommand } from "herdr";
 import { tr } from "./i18n/i18n.js";
 
 function find(node, id) {
@@ -36,10 +36,75 @@ const RAY_PANELS = [
   { id: "mods", label: "Mods", icon: "mods/ray-mods/mods.svg", count: "ray.mods.updates" },
 ];
 
+// Cmd+Alt+<letter> opens a side panel (keys.json: "tabs-big.<panel id>"); the same key closes it.
+// With Shift (or a Shift+click) it goes to the bottom half ("tabs-big.low-<panel id>"):
+// the layout's "panel-low" stack, which holds a second block "low-<id>" for each panel.
+const PANEL_KEY = { files: "F", changes: "G", prs: "P", sessions: "S", notes: "M", chat: "C", mods: "E" };
+
 export default class Tabs extends View {
-  init() {
+  init(_props, cx) {
     this.pressed = null;
+    this.enabled = [];
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+    this.lows = JSON.parse(localStorage.getItem("panels-low") ?? "{}");
+    cx.spawn(async () => {
+      for (;;) {
+        const command = await nextCommand(), toLow = command.startsWith("low-"), id = toLow ? command.slice(4) : command;
+        if (this.enabled.includes(id)) this.togglePanel(id, toLow);
+      }
+    });
+  }
+
+  // What shows now: `top` and `bottom` are panel ids (null: that half is closed).
+  panelState(root = layout()) {
+    const panel = find(root, "panel"), body = find(panel, "panel-body"), low = find(panel, "panel-low");
+    const open = Boolean(panel) && !panel.hidden;
+    return { panel, body, low, top: open ? body?.active ?? null : null,
+      bottom: open && low && !low.hidden ? low.active?.replace(/^low-/, "") ?? null : null };
+  }
+
+  // A click or key on a panel's button. A panel shows in one half only: asking for
+  // it in the other half swaps the two (or does nothing when there is nothing to swap with).
+  togglePanel(id, toLow = false) {
+    const { body, low, top, bottom } = this.panelState();
+    const setTop = (x) => { run("layout.select", { stack: "panel-body", child: x }); run("layout.show", { id: "panel" }); };
+    const setLow = (x) => { run("layout.select", { stack: "panel-low", child: `low-${x}` }); run("layout.show", { id: "panel-low" }); };
+    const closeLow = () => { if (low && !low.hidden) run("layout.hide", { id: "panel-low" }); };
+    if (toLow && find(low, `low-${id}`) && !(top === null && body?.active === id)) {
+      if (bottom === id) closeLow();
+      else if (top === id) { if (bottom) { setTop(bottom); setLow(id); } }
+      else { setLow(id); if (top === null) run("layout.show", { id: "panel" }); }
+    } else if (top === id) { run("layout.hide", { id: "panel" }); closeLow(); }
+    else {
+      if (bottom === id) { if (top) setLow(top); else closeLow(); }
+      setTop(id);
+    }
+  }
+
+  // The bottom half is remembered per space too, the same way as the top (below).
+  syncLow(space, low, enabled) {
+    if (!space || !low) return;
+    const now = low.hidden ? null : low.active?.replace(/^low-/, "") ?? null;
+    if (space.id !== this.lowSpace) {
+      const first = this.lowSpace === undefined;
+      this.lowSpace = space.id; this.lowPending = null;
+      if (!(first && !(space.id in this.lows))) {
+        const stored = this.lows[space.id] ?? null, want = enabled.includes(stored) ? stored : null;
+        if (want !== now) {
+          this.lowPending = { want, until: Date.now() + 1000 };
+          if (want) { run("layout.select", { stack: "panel-low", child: `low-${want}` }); run("layout.show", { id: "panel-low" }); }
+          else run("layout.hide", { id: "panel-low" });
+          return;
+        }
+      }
+    }
+    if (this.lowPending) {
+      if (this.lowPending.want !== now && Date.now() < this.lowPending.until) return;
+      this.lowPending = null;
+    }
+    if (this.lows[space.id] === now) return;
+    this.lows[space.id] = now;
+    localStorage.setItem("panels-low", JSON.stringify(this.lows));
   }
 
   // The side panel is remembered per space: switching shows that space's choice
@@ -104,16 +169,20 @@ export default class Tabs extends View {
     const panel = find(root, "panel"), body = find(root, "panel-body");
     const ray = RAY_PANELS.filter((p) => find(body, p.id) && !find(body, p.id).hidden && (!p.needs || shared(p.needs) !== false));
     const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), ...ray.map((p) => p.id)];
+    this.enabled = enabled;
     this.syncPanel(space, panel, body, enabled);
+    const { low, top, bottom } = this.panelState(root);
+    this.syncLow(space, low, enabled);
+    // A panel that opened itself on top while it was in the bottom half: the bottom closes.
+    if (top && top === bottom) run("layout.hide", { id: "panel-low" });
     const panelButton = (id, label, icon, count = 0) => {
-      const on = panel && !panel.hidden && body?.active === id;
+      const on = top === id, onLow = bottom === id && !on;
       return h_flex().id(`panel-${id}`).h(26).px(8).gap(5).flex_none().items_center().rounded(6)
-        .text_size(14).bg(on ? t.selected : t.chrome).text_color(on ? t.foreground : t.muted)
-        .hover(s => s.bg(t.hover)).on_mouse_down("left", stop)
-        .on_click(() => {
-          if (on) run("layout.hide", { id: "panel" });
-          else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
-        }).child(svg(icon).size(14)).child(label)
+        .text_size(14).bg(on || onLow ? t.selected : t.chrome).text_color(on || onLow ? t.foreground : t.muted)
+        .when(onLow, (el) => el.border_b(2).border_color(t.accent))
+        .hover(s => s.bg(t.hover)).on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.shift = Boolean(e.modifiers?.shift); })
+        .on_click((e) => this.togglePanel(id, e?.modifiers?.shift ?? this.shift)).child(svg(icon).size(14)).child(label)
+        .when(Boolean(PANEL_KEY[id]), (el) => el.child(div().text_size(11).text_color(t.dim).child(`(${PANEL_KEY[id]})`)))
         .when(count > 0, (el) => el.child(div().flex_none().px(5).h(16).min_w(16).flex().items_center().justify_center().rounded(8).bg(t.blocked)
           .text_size(11).font_bold().text_color(inkOn(t.blocked)).child(count > 99 ? "99+" : String(count))));
     };

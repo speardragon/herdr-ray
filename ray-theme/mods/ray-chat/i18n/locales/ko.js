@@ -211,6 +211,7 @@ export default {
   "Yesterday": "어제",
   "{time} {half}": "{half} {time}",
   "Newest ↓": "최신 메시지 ↓",
+  "Show {n} earlier messages": "이전 메시지 {n}개 더 보기",
   "Viewing": "현재",
   "Copy": "복사",
   "Copied": "복사됨",
