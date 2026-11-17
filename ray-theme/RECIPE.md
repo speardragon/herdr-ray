@@ -11,7 +11,7 @@ Left to right, top to bottom:
 - **Sidebar** (268px, `chrome`): the brand row (46px, draggable window), the spaces list, and a footer (69px: Settings, Add machine).
   - Machine tabs on top when there is more than one machine ("This computer" | "home").
   - "Spaces" header with search (opens the picker) and sort.
-  - Each space: its logo (first letter on its color, or an emoji, a character, an image or a website's icon you pick), name, git branch and ahead/behind, a fold chevron. Under it, on a tree line, "Agents N" and one 32px row an agent: program logo, name (as the tab is named), how long in its state, its status mark; sub-agents indented under it.
+  - Each space: its logo (first letter on its color, or an emoji, a character, an image or a website's icon you pick), name, git branch and ahead/behind, a fold chevron. Under it, on a tree line, its plain terminals after its agents (28px rows: a terminal icon, what runs there, the folder), a tab split into several panes drawn as one soft box around its rows, and one 32px row an agent: program logo, name (as the tab is named), how long in its state, its status mark; sub-agents indented under it.
   - Right-click a space: Rename, Edit logo, worktree items, Close. Drag a space to reorder. Hover an agent and press the pin to mark it with a color.
 - **Tab bar** (42px, draggable window): the space's tabs, then panel buttons on the right (Files, Changes, PRs, Sessions, Notes, Chat with an unread badge, Mods with an update badge), each with its key letter in small dim brackets: `(F)`, `(G)`, `(P)`, `(S)`, `(M)`, `(C)`, `(E)`.
 - **Panes** (gap 8, padding 8, rounded 10, accent border on focus), each with a 30px header: program, folder, branch, PR number with its checks dot, Jira key and title.
