@@ -16,7 +16,7 @@ import { spaces, machines, panes, agents, terminals, focused, run, openOverlay, 
 import { Git, where } from "./git.js";
 import { Machines } from "./machines.js";
 import { AgentTimes, SORTS, RANK, names, tree, kidStatus, statusMark } from "./agents.js";
-import { agentsHead, agentRow, subRow } from "./agent-rows.js";
+import { agentRow, subRow, termRow, tabBox, ROW_H } from "./agent-rows.js";
 import { colorMenu } from "./agent-color.js";
 import { SpaceMenu } from "./space-menu.js";
 import { LogoEditor } from "./logo-editor.js";
@@ -155,10 +155,19 @@ export default class Sidebar extends View {
     const urgency = new Map(list.map((a) => [a.address, Math.max(this.times.rank(a), ...tree(all, a.address).map((s) => RANK[kidStatus(s.t, listed)] ?? 0))]));
     const byPriority = sortOf().id === "priority";
     const order = (x, y) => (byPriority ? urgency.get(y.address) - urgency.get(x.address) || this.times.since(y) - this.times.since(x) || y.seq - x.seq : 0);
-    const bySpace = new Map(sp.map((s) => [s.id, list.filter((a) => a.space === s.id).sort(order)]));
+    // Agents of one tab stay together, where the first of them sorts.
+    const together = (arr) => [...new Set(arr.map((a) => a.tab))].flatMap((tab) => arr.filter((a) => a.tab === tab));
+    const bySpace = new Map(sp.map((s) => [s.id, together(list.filter((a) => a.space === s.id).sort(order))]));
     const placed = new Set([...bySpace.values()].flat().map((a) => a.address));
     setAgentOrder([...[...bySpace.values()].flat(), ...list.filter((a) => !placed.has(a.address))].map((a) => a.address));
-    return { bySpace, listed, all, now, labels: names(list, sp.flatMap((s) => s.tabs ?? [])) };
+    // The terminals that run no agent, by space, in pane order.
+    const taken = new Set(list.map((a) => a.pane));
+    const ps = panes().filter((p) => p.terminal && !p.program?.agent && !taken.has(p.pane));
+    const terms = new Map(sp.map((s) => {
+      const tabs = new Set((s.tabs ?? []).map((x) => x.id));
+      return [s.id, ps.filter((p) => tabs.has(p.tab))];
+    }));
+    return { bySpace, terms, listed, all, now, labels: names(list, sp.flatMap((s) => s.tabs ?? [])) };
   }
 
   sortMenu(t) {
@@ -231,7 +240,7 @@ export default class Sidebar extends View {
 
   // The chevron that folds a space's agents; folded, it says how many there
   // are and the most urgent state among them.
-  spaceFold(t, w, mine) {
+  spaceFold(t, w, mine, terms) {
     const open = !this.foldedSpaces.has(w.id);
     const top = mine.reduce((m, a) => ((RANK[a.status] ?? 0) > (RANK[m] ?? 0) ? a.status : m), null);
     return h_flex().id(`space-fold-${w.id}`).flex_none().h(22).px(3).gap(4).items_center().rounded(5).text_size(12.5).text_color(t.dim)
@@ -245,7 +254,7 @@ export default class Sidebar extends View {
       })
       .when(!open, (el) => el
         .when(Boolean(top) && top !== "idle", (x) => x.child(statusMark(t, top, true)))
-        .child(String(mine.length)))
+        .child(String(mine.length + terms.length)))
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(13).flex_none());
   }
 
@@ -266,7 +275,7 @@ export default class Sidebar extends View {
 
   // A space's own line. Pressing it starts a drag (see spaceGroup, which takes
   // the drop); right-click opens its menu.
-  spaceRow({ w, i, g, tree: nested }, t, mine) {
+  spaceRow({ w, i, g, tree: nested }, t, mine, terms) {
     const on = w.active;
     return v_flex().id(`space-${w.id}`).px(8).h(nested ? 28 : 32).flex_none().justify_center().rounded(8)
       .when(on, (el) => el.bg(t.selected))
@@ -282,20 +291,32 @@ export default class Sidebar extends View {
         .when(!nested, (el) => el.child(avatar(w, 18, fillOf(t, w.id))))
         .child(div().flex_shrink(0).max_w(140).truncate().text_color(t.foreground).child(w.name))
         .child(g ? this.gitTail(g, nested, w.name, t) : div().flex_1())
-        .when(mine.length > 0, (el) => el.child(this.spaceFold(t, w, mine))));
+        .when(mine.length + terms.length > 0, (el) => el.child(this.spaceFold(t, w, mine, terms))));
   }
 
   // The rows under a space: its agents and their sub-agents, unless folded.
-  agentRows(r, t, ag, mine, shown) {
-    if (!mine.length || this.foldedSpaces.has(r.w.id)) return [];
+  agentRows(r, t, ag, mine, terms, shown) {
+    if (!(mine.length + terms.length) || this.foldedSpaces.has(r.w.id)) return [];
     const x = r.tree ? NESTED_X : AVATAR_X;
-    return [agentsHead(t, x, mine.length, r.w.id), ...mine.flatMap((a, n) => {
-      const last = n === mine.length - 1;
-      const subs = tree(ag.all, a.address);
-      const row = agentRow(this, t, a, { x, last, name: ag.labels.get(a.address), subs, listed: ag.listed, since: this.times.since(a), now: ag.now });
-      if (this.foldedAgents.has(a.address)) return [row];
-      return [row, ...subs.map((s) => subRow(t, s, { x, through: !last, listed: ag.listed, shown }))];
-    })];
+    // By tab: agents first (they come together), then the tab's terminals.
+    const groups = [];
+    const of = (tab) => groups.find((g) => g.tab === tab) ?? groups[groups.push({ tab, agents: [], terms: [] }) - 1];
+    for (const a of mine) of(a.tab).agents.push(a);
+    for (const p of terms) of(p.tab).terms.push(p);
+    return groups.flatMap((g, n) => {
+      const last = n === groups.length - 1;
+      const boxed = g.agents.length + g.terms.length > 1;
+      const rows = [];
+      g.agents.forEach((a, k) => {
+        const end = last && k === g.agents.length - 1 && !g.terms.length;
+        const subs = tree(ag.all, a.address);
+        rows.push({ h: ROW_H.agent, el: agentRow(this, t, a, { x, boxed, last: end, name: ag.labels.get(a.address), subs, listed: ag.listed, since: this.times.since(a), now: ag.now }) });
+        if (this.foldedAgents.has(a.address)) return;
+        for (const s of subs) rows.push({ h: ROW_H.sub, el: subRow(t, s, { x, boxed, through: !end, listed: ag.listed, shown }) });
+      });
+      g.terms.forEach((p, k) => rows.push({ h: ROW_H.term, el: termRow(t, p, { x, boxed, last: last && k === g.terms.length - 1 }) }));
+      return boxed ? [tabBox(t, x, `${r.w.id}-${g.tab}`, rows, last)] : rows.map((row) => row.el);
+    });
   }
 
   // A space with its agents, as one block: a space dragged by its line is
@@ -305,6 +326,7 @@ export default class Sidebar extends View {
   spaceGroup(r, t, ag, first, shown) {
     const { w, i } = r;
     const mine = ag.bySpace.get(w.id) ?? [];
+    const terms = ag.terms.get(w.id) ?? [];
     const dragging = this.pressed !== null && this.over !== this.pressed;
     return v_flex().relative().id(`group-${w.id}`).flex_none()
       .when(!first && !r.tree, (el) => el.mt(8))
@@ -323,8 +345,8 @@ export default class Sidebar extends View {
           cx.notify();
         }
       })
-      .child(this.spaceRow(r, t, mine))
-      .children(this.agentRows(r, t, ag, mine, shown));
+      .child(this.spaceRow(r, t, mine, terms))
+      .children(this.agentRows(r, t, ag, mine, terms, shown));
   }
 
   // The rail: a number per space and per agent, each with its state.

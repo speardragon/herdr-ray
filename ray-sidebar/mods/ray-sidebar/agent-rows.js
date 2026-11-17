@@ -1,15 +1,14 @@
-// The rows under a space in the sidebar: an "Agents n" line, then its agents
-// (and their sub-agents), hanging off one line that runs down from the space's
-// avatar. `x` is where that line is, from the row's left edge.
+// The rows under a space in the sidebar: its agents (and their sub-agents),
+// then its plain terminals, hanging off one line that runs down from the
+// space's avatar. `x` is where that line is, from the row's left edge.
 
 import { div, svg } from "gpui-kit";
-import { h_flex } from "gpui-base";
+import { h_flex, v_flex } from "gpui-base";
 import { run, openOverlay } from "herdr";
 import { colorOf, MENU } from "./agent-color.js";
 import { duration, icon, kidStatus, statusMark, RANK } from "./agents.js";
 import { tr } from "./i18n/i18n.js";
 
-const HEAD_H = 28;
 const AGENT_H = 32;
 const SUB_H = 28;
 const TICK = 9; // the stub from the line to a row
@@ -23,15 +22,6 @@ function gutter(t, x, h, { through, tick }) {
   return div().relative().w(x + TICK + 4).h(h).flex_none()
     .child(div().absolute().left(x).top(0).w(1).h(through ? h : mid).bg(lineColor(t)))
     .when(tick, (el) => el.child(div().absolute().left(x).top(mid).w(TICK).h(1).bg(lineColor(t))));
-}
-
-export function agentsHead(t, x, count, spaceId) {
-  return h_flex().id(`agents-of-${spaceId}`).h(HEAD_H).flex_none().items_center()
-    .child(gutter(t, x, HEAD_H, { through: true, tick: true }))
-    .child(h_flex().gap(6).items_center().text_size(13).text_color(t.muted)
-      .child(svg("mods/ray-sidebar/bot.svg").size(14).flex_none().text_color(t.dim))
-      .child(div().child(tr("Agents")))
-      .child(div().px(6).h(18).flex().items_center().rounded(9).bg(t.raised).text_size(12).text_color(t.muted).child(String(count))));
 }
 
 // The chevron that folds an agent's sub-agents; folded, their count too,
@@ -75,7 +65,7 @@ export function agentRow(v, t, a, o) {
   const hovered = v.hovered === a.address;
   const color = colorOf(a.address);
   return h_flex().id(`ag-${a.address}`).h(AGENT_H).flex_none().items_center()
-    .child(gutter(t, o.x, AGENT_H, { through: !o.last, tick: true }))
+    .when(!o.boxed, (el) => el.child(gutter(t, o.x, AGENT_H, { through: !o.last, tick: true })))
     .child(h_flex().id(`ag-pill-${a.address}`).flex_1().min_w(0).h(AGENT_H - 1).px(7).gap(8).rounded(7).items_center()
       // Its color, softly; a little stronger when it is the one in view or under the pointer.
       .when(Boolean(color), (el) => el.bg(`${color}${a.focused ? "47" : "26"}`).hover((s) => s.bg(`${color}3D`)))
@@ -101,7 +91,7 @@ export function subRow(t, s, o) {
   const pic = icon(k.program, 14, t.foreground);
   const on = k.address === o.shown;
   return h_flex().id(`sub-${k.address}`).h(SUB_H).flex_none().items_center()
-    .child(gutter(t, o.x, SUB_H, { through: o.through, tick: false }))
+    .when(!o.boxed, (el) => el.child(gutter(t, o.x, SUB_H, { through: o.through, tick: false })))
     .child(h_flex().id(`sub-pill-${k.address}`).flex_1().min_w(0).h(SUB_H - 1).pl(14).pr(7).rounded(7).items_center().text_size(14)
       .when(on, (el) => el.bg(t.raised))
       .cursor_pointer()
@@ -114,3 +104,39 @@ export function subRow(t, s, o) {
       .child(div().flex_1().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
       .child(statusMark(t, kidStatus(k, o.listed), true)));
 }
+
+// A terminal that runs no agent, under its space's agents: the terminal mark,
+// what runs in it, and its folder. o: { x, last, boxed }
+const leaf = (cwd) => (cwd ?? "").replace(/\/+$/, "").split("/").pop() || (cwd ? "/" : "");
+
+export function termRow(t, p, o) {
+  const name = (p.program?.shell && p.program.name) || p.title || p.program?.name || tr("shell");
+  return h_flex().id(`term-${p.pane}`).h(SUB_H).flex_none().items_center()
+    .when(!o.boxed, (el) => el.child(gutter(t, o.x, SUB_H, { through: !o.last, tick: true })))
+    .child(h_flex().id(`term-pill-${p.pane}`).flex_1().min_w(0).h(SUB_H - 1).px(7).gap(8).rounded(7).items_center().text_size(14)
+      .when(p.focused, (el) => el.bg(t.selected))
+      .cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .on_click(() => run("pane.focus", { pane: p.pane }))
+      .child(svg("mods/workspace-chrome/terminal.svg").size(14).flex_none().text_color(t.dim))
+      .child(div().flex_1().min_w(0).truncate().text_color(p.focused ? t.foreground : t.muted).child(name))
+      .child(div().flex_none().max_w(110).truncate().text_size(12.5).text_color(t.dim).child(leaf(p.cwd))));
+}
+
+// The panes of one tab, when it has several: their rows in one soft box, so
+// what shares a screen reads as one thing. The space's line reaches the box
+// once, at its first row. rows: [{ el, h }] drawn with `boxed`.
+export function tabBox(t, x, id, rows, last) {
+  const h = rows.reduce((n, r) => n + r.h, 0);
+  const mid = 5 + Math.floor(rows[0].h / 2);
+  const ink = /^#[0-9a-f]{6}$/i.test(t.foreground ?? "") ? t.foreground : null;
+  return h_flex().id(`tab-box-${id}`).h(h + 10).flex_none()
+    .child(div().relative().w(x + TICK + 4).h(h + 10).flex_none()
+      .child(div().absolute().left(x).top(0).w(1).h(last ? mid : h + 10).bg(lineColor(t)))
+      .child(div().absolute().left(x).top(mid).w(TICK).h(1).bg(lineColor(t))))
+    .child(v_flex().flex_1().min_w(0).h(h + 6).p(2).rounded(9).border_1()
+      .bg(ink ? `${ink}12` : t.hover).border_color(ink ? `${ink}1C` : t.border)
+      .children(rows.map((r) => r.el)));
+}
+
+export const ROW_H = { agent: AGENT_H, sub: SUB_H, term: SUB_H };
