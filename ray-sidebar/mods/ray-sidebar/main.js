@@ -167,7 +167,10 @@ export default class Sidebar extends View {
       const tabs = new Set((s.tabs ?? []).map((x) => x.id));
       return [s.id, ps.filter((p) => tabs.has(p.tab))];
     }));
-    return { bySpace, terms, listed, all, now, labels: names(list, sp.flatMap((s) => s.tabs ?? [])) };
+    // Working, but only at what it left running: the reply is over and a
+    // background shell goes on ("1 shell still running", the agent's own word).
+    const bg = new Set(all.filter((k) => /^\d+ shells? still running$/.test(k.report?.msg ?? "")).map((k) => k.address));
+    return { bySpace, terms, bg, listed, all, now, labels: names(list, sp.flatMap((s) => s.tabs ?? [])) };
   }
 
   sortMenu(t) {
@@ -310,9 +313,9 @@ export default class Sidebar extends View {
       g.agents.forEach((a, k) => {
         const end = last && k === g.agents.length - 1 && !g.terms.length;
         const subs = tree(ag.all, a.address);
-        rows.push({ h: ROW_H.agent, el: agentRow(this, t, a, { x, boxed, last: end, name: ag.labels.get(a.address), subs, listed: ag.listed, since: this.times.since(a), now: ag.now }) });
+        rows.push({ h: ROW_H.agent, el: agentRow(this, t, a, { x, boxed, last: end, bg: ag.bg.has(a.address), name: ag.labels.get(a.address), subs, listed: ag.listed, since: this.times.since(a), now: ag.now }) });
         if (this.foldedAgents.has(a.address)) return;
-        for (const s of subs) rows.push({ h: ROW_H.sub, el: subRow(t, s, { x, boxed, through: !end, listed: ag.listed, shown }) });
+        for (const s of subs) rows.push({ h: ROW_H.sub, el: subRow(t, s, { x, boxed, through: !end, listed: ag.listed, shown, bg: ag.bg.has(s.t.address) }) });
       });
       g.terms.forEach((p, k) => rows.push({ h: ROW_H.term, el: termRow(t, p, { x, boxed, last: last && k === g.terms.length - 1 }) }));
       return boxed ? [tabBox(t, x, `${r.w.id}-${g.tab}`, rows, last)] : rows.map((row) => row.el);
@@ -363,7 +366,7 @@ export default class Sidebar extends View {
       .child(v_flex().id("rail").flex_1().min_h(0).overflow_y_scrollbar()
         .children(rows.map((r) => line(`space-${r.w.id}`, r.i + 1, r.w.active, dot(r.w.status), () => run("space.select", { id: r.w.id }))))
         .child(div().h(1).flex_none().my(6).bg(t.border))
-        .children(mine.map((a, n) => line(`ag-${a.address}`, n + 1, a.focused, statusMark(t, a.status, true), () => run("pane.focus", { pane: a.pane })))))
+        .children(mine.map((a, n) => line(`ag-${a.address}`, n + 1, a.focused, statusMark(t, a.status, true, ag.bg.has(a.address)), () => run("pane.focus", { pane: a.pane })))))
       .child(h_flex().h(28).flex_none().items_center().justify_center()
         .child(div().id("unfold").text_size(15).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(unfoldSidebar).child("»")));
   }

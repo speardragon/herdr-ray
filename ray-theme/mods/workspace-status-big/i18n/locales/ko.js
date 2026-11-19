@@ -211,6 +211,7 @@ export default {
   "Yesterday": "어제",
   "{time} {half}": "{half} {time}",
   "Newest ↓": "최신 메시지 ↓",
+  "Show {n} earlier messages": "이전 메시지 {n}개 더 보기",
   "Viewing": "현재",
   "Copy": "복사",
   "Copied": "복사됨",
@@ -361,4 +362,5 @@ export default {
   "Not saved": "저장 안 됨",
   "Open a space to take notes for it.": "스페이스를 열면 그 스페이스의 메모를 쓸 수 있어요.",
   "Click below and write anything for this space. It's saved as Markdown.": "아래를 눌러 이 스페이스에 대한 메모를 적어요. Markdown 파일로 저장돼요.",
+  "{n} min": "{n}분째",
 };

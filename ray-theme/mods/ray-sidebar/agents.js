@@ -76,9 +76,12 @@ export function icon(p, size, color) {
 }
 
 // Working: a spinner; blocked: "Needs you" (compact: a !); idle: a ring; done: a dot.
-export function statusMark(t, status, compact = false) {
+// `bg`: working only at a background shell, the reply over: the spinner in teal.
+const BG = "#2cc0ad";
+
+export function statusMark(t, status, compact = false, bg = false) {
   const color = t[status] ?? t.dim;
-  if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
+  if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(bg ? BG : t.working).spin(900);
   if (status === "blocked" && compact) return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(12).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
   if (status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(12).font_semibold().text_color(t.blocked).flex().items_center().child(tr("Needs you"));
   if (status === "idle") return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);

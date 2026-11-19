@@ -15,6 +15,11 @@ const TICK = 9; // the stub from the line to a row
 
 const lineColor = (t) => t.input ?? t.border;
 
+// The row you are in is marked the way the pane you are in is: the accent as a
+// hairline around it, over the plain selection gray. Every row has the hairline's
+// room (clear when it isn't the one), so nothing shifts when focus moves.
+const CLEAR = "#00000000";
+
 // The strip left of a row that carries the line: `through` runs it past the
 // row (more rows follow), `tick` adds the stub to this row.
 function gutter(t, x, h, { through, tick }) {
@@ -66,10 +71,11 @@ export function agentRow(v, t, a, o) {
   const color = colorOf(a.address);
   return h_flex().id(`ag-${a.address}`).h(AGENT_H).flex_none().items_center()
     .when(!o.boxed, (el) => el.child(gutter(t, o.x, AGENT_H, { through: !o.last, tick: true })))
-    .child(h_flex().id(`ag-pill-${a.address}`).flex_1().min_w(0).h(AGENT_H - 1).px(7).gap(8).rounded(7).items_center()
+    .child(h_flex().id(`ag-pill-${a.address}`).flex_1().min_w(0).h(AGENT_H - 1).px(6).gap(8).rounded(7).items_center()
       // Its color, softly; a little stronger when it is the one in view or under the pointer.
       .when(Boolean(color), (el) => el.bg(`${color}${a.focused ? "47" : "26"}`).hover((s) => s.bg(`${color}3D`)))
       .when(!color, (el) => el.when(a.focused, (x) => x.bg(t.selected)).hover((s) => s.bg(t.hover)))
+      .border_1().border_color(a.focused ? t.accent : CLEAR)
       .cursor_pointer()
       .on_hover((on, cx) => {
         if (on) v.hovered = a.address;
@@ -82,7 +88,7 @@ export function agentRow(v, t, a, o) {
       .when(o.subs.length > 0, (el) => el.child(fold(v, t, a, o.subs, o.listed)))
       .when(hovered, (el) => el.child(pin(v, t, a, color)))
       .when(!hovered && Boolean(o.since), (el) => el.child(div().flex_none().text_size(12.5).text_color(t.dim).child(duration(o.now - o.since))))
-      .child(statusMark(t, a.status)));
+      .child(statusMark(t, a.status, false, o.bg)));
 }
 
 // A sub-agent under its agent. o: { x, through, listed, shown }
@@ -102,7 +108,7 @@ export function subRow(t, s, o) {
         .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6))))
       .when(Boolean(pic), (el) => el.child(div().mr(8).child(pic)))
       .child(div().flex_1().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
-      .child(statusMark(t, kidStatus(k, o.listed), true)));
+      .child(statusMark(t, kidStatus(k, o.listed), true, o.bg)));
 }
 
 // A terminal that runs no agent, under its space's agents: the terminal mark,
@@ -113,8 +119,9 @@ export function termRow(t, p, o) {
   const name = (p.program?.shell && p.program.name) || p.title || p.program?.name || tr("shell");
   return h_flex().id(`term-${p.pane}`).h(SUB_H).flex_none().items_center()
     .when(!o.boxed, (el) => el.child(gutter(t, o.x, SUB_H, { through: !o.last, tick: true })))
-    .child(h_flex().id(`term-pill-${p.pane}`).flex_1().min_w(0).h(SUB_H - 1).px(7).gap(8).rounded(7).items_center().text_size(14)
+    .child(h_flex().id(`term-pill-${p.pane}`).flex_1().min_w(0).h(SUB_H - 1).px(6).gap(8).rounded(7).items_center().text_size(14)
       .when(p.focused, (el) => el.bg(t.selected))
+      .border_1().border_color(p.focused ? t.accent : CLEAR)
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => run("pane.focus", { pane: p.pane }))
