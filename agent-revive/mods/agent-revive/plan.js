@@ -1,8 +1,8 @@
-// Updates the snapshot and picks what to revive. It imports nothing from Herdr, so node can test it.
+// Updates the snapshot and finds what can be revived. It imports nothing from Herdr, so node can test it.
 //
 // The signal is the shell's pid. When herdr-core loses a terminal (core restart, reboot) it gives the
-// same address a new shell, so the pid changes. Same pid but no agent means the person quit it:
-// it is forgotten, never revived.
+// same address a new shell, so the pid changes. Same pid but no agent means the person quit it: it is
+// forgotten.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHELLS = new Set(["sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "csh", "nu"]);
@@ -34,27 +34,38 @@ export function resumeCommand(entry, hasLog) {
 // snapshot: { [address]: { sessionId, cwd, shellPid, where, seenAt } }
 // live: terminals running Claude now { address, sessionId, cwd, shellPid, where }
 // terms: `hc get` of each address in the snapshot { [address]: term | null }
-// returns: { snapshot: the new snapshot, revive: the entries to revive }
+// returns: { snapshot, candidates }. Candidates stay as they are in the snapshot until chosen (applyChoice).
 export function plan(snapshot, live, terms, now) {
   const next = {};
   const running = new Set(live.map((a) => a.sessionId));
   for (const a of live) next[a.address] = { sessionId: a.sessionId, cwd: a.cwd, shellPid: a.shellPid, where: a.where, seenAt: now };
 
-  const revive = [];
+  const candidates = [];
   for (const [address, entry] of Object.entries(snapshot ?? {})) {
     if (next[address]) continue;
     const term = terms[address];
     if (!term || term.state !== "live") continue; // the terminal was closed: forget it
     if (term.pid === entry.shellPid) continue; // same shell, agent gone: the person quit it
     if (!isSessionId(entry.sessionId) || running.has(entry.sessionId)) continue;
-    if (!atPrompt(term)) {
-      next[address] = entry; // the new shell is busy: look again next scan
+    next[address] = entry;
+    // A new shell busy with something else is no candidate yet: look again next scan
+    if (!atPrompt(term)) continue;
+    candidates.push({ address, ...entry, newShellPid: term.pid });
+    running.add(entry.sessionId);
+  }
+  return { snapshot: next, candidates };
+}
+
+// What the popup chose: chosen ones take the new shell as theirs (so they are no candidate again), the rest are forgotten.
+export function applyChoice(snapshot, candidates, chosen, now) {
+  const next = { ...snapshot };
+  for (const c of candidates) {
+    if (!chosen.has(c.address)) {
+      delete next[c.address];
       continue;
     }
-    revive.push({ address, ...entry });
-    running.add(entry.sessionId);
-    // From now on the new shell is the reference: if Claude doesn't start, the next scan forgets it.
-    next[address] = { ...entry, shellPid: term.pid, revivedAt: now };
+    const { newShellPid, address, ...entry } = c;
+    next[address] = { ...entry, shellPid: newShellPid, revivedAt: now };
   }
-  return { snapshot: next, revive };
+  return next;
 }
