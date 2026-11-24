@@ -15,6 +15,7 @@ Layouts and mods for the [Herdr](https://herdr.dev) app. Each folder is one entr
 | [`ray-files`](ray-files) | Mod: the file panel in VS Code's look, with Material Icon Theme icons, Dark Modern colors and picture previews | `herdr.dev/mods/speardragon/ray-files` |
 | [`ray-changes`](ray-changes) | Mod: the Changes panel in VS Code's Source Control look, with a commit graph, each commit's files and diffs in a dialog (uses `ray-files`' icons) | `herdr.dev/mods/speardragon/ray-changes` |
 | [`ray-sessions`](ray-sessions) | Mod: past Claude Code and Codex sessions in this folder, resumed in a new tab | `herdr.dev/mods/speardragon/ray-sessions` |
+| [`agent-revive`](agent-revive) | Mod (status-bar block): when herdr-core loses your terminals, resumes each Claude Code session in the same terminal | `herdr.dev/mods/speardragon/agent-revive` |
 
 Each folder has a `RECIPE.md`: the brief an agent can build the entry from with an empty folder. Your agent reads every file before it adds one; these mods run programs (`gh`, `git`, `hc`, `curl`) and read your agents' own session files, as each recipe says.
 
